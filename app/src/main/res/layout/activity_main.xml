@@ -76,8 +76,7 @@
         app:elevation="4dp"
         app:fabCustomSize="46dp"
         app:maxImageSize="22dp"
-        app:borderWidth="1dp"
-        app:borderColor="@color/colorCardBorder"
+        app:borderWidth="0dp"
         android:contentDescription="@string/calc_title" />
 
     <!-- Floating Action Button (FAB) -->

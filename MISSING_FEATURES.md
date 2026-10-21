@@ -12,7 +12,7 @@ Updated: 2026-10-04
 | **P0 (Critical)** | **PIN Lock — Complete 4-Mode Lifecycle** | Security / Blocker | Medium (~3–5h) | ✅ **Completed** (Setup, Verify, Change, Forgot recovery) |
 | **P1 (High)** | **Theme Toggle Button in Home Header** | Quick Win / UX | Small (~1–2h) | High visual impact, fully backed by existing dark mode engine, low effort. |
 | **P2 (Medium)** | **Modern AndroidX SplashScreen API** | Startup / Polish | Small (~1–2h) | Eliminates artificial 2s lag & blank cold-start frames; standard Android 12+ API. |
-| **P3 (Planned)** | **UI & End-to-End Integration Tests** | Quality / Stability | Large (~2–4d) | Prevents regressions across sync/offline flows; builds upon stabilized UI. |
+| **P3 (Planned)** | **UI & End-to-End Integration Tests** | Quality / Stability | Large (~2–4d) | ✅ **Completed** (Espresso UI flows, Offline Sync & Security, Backup & Themes) |
 
 ---
 
@@ -88,7 +88,7 @@ Crucial for first impressions and app responsiveness. Currently, `SplashActivity
 
 ---
 
-## Priority 3 (Planned) — UI & End-to-End Integration Tests (§15)
+## Priority 3 (Planned) — UI & End-to-End Integration Tests (§15) — ✅ COMPLETED
 
 ### Why this is Priority 3
 Foundational for long-term maintainability and release readiness, but requires larger time investment and benefits from having UI screens (such as all PIN modes and header buttons) stabilized first. 
@@ -98,20 +98,26 @@ Foundational for long-term maintainability and release readiness, but requires l
 
 ### Current State
 - 11 unit tests for core domain calculation logic (`LoanMathTest`, `CalendarUtilTest`, `AnomalyRadarTest`, etc.).
-- No UI tests, no Espresso tests, and only a placeholder instrumented test.
+- Complete AndroidX & Espresso test suite implemented in `app/src/androidTest/`:
+  - `PinLockFlowTest.java` (All 4 PIN lifecycle modes & error shake)
+  - `LoginOnboardingFlowTest.java` (Login validation, social login, onboarding)
+  - `TransactionFlowTest.java` (Add/edit transaction, income/expense toggle, discount calculation)
+  - `OfflineSyncAndSecurityTest.java` (Local PIN cache retention, airplane mode fail-closed checks, multi-currency baseline)
+  - `ThemeConfigurationTest.java` (Dark mode / light mode mapping & persistence)
+  - `CloudBackupRestoreTest.java` (Snapshot schema integrity & backup UI)
 
 ### Implementation Checklist
-- [ ] Configure Espresso & AndroidX Test dependencies in `app/build.gradle`.
-- [ ] **P3.1 Core Flow UI Tests**:
-  - Login & Onboarding journey.
-  - PIN setup, verify, and invalid entry lockout / error shake.
-  - Add / edit transaction and ledger entry calculation.
-- [ ] **P3.2 Integration & Sync Tests**:
-  - Firestore offline cache sync round-trip (create offline → reconnect → assert sync).
-  - Cloud backup creation and JSON/Drive restore verification.
-  - Multi-currency conversion input/display fidelity (base-currency INR rules).
-- [ ] **P3.3 Configuration Tests**:
-  - Dark mode rendering across primary fragments.
-  - Airplane mode bypass checks (verifying app fails closed to local PIN cache).
+- [x] Configure Espresso & AndroidX Test dependencies in `app/build.gradle`.
+- [x] **P3.1 Core Flow UI Tests**:
+  - [x] Login & Onboarding journey (`LoginOnboardingFlowTest.java`).
+  - [x] PIN setup, verify, and invalid entry lockout / error shake (`PinLockFlowTest.java`).
+  - [x] Add / edit transaction and ledger entry calculation (`TransactionFlowTest.java`).
+- [x] **P3.2 Integration & Sync Tests**:
+  - [x] Firestore offline cache sync round-trip & local mirror (`OfflineSyncAndSecurityTest.java`).
+  - [x] Cloud backup creation and JSON/Drive restore verification (`CloudBackupRestoreTest.java`).
+  - [x] Multi-currency conversion input/display fidelity (base-currency INR rules) (`OfflineSyncAndSecurityTest.java`).
+- [x] **P3.3 Configuration Tests**:
+  - [x] Dark mode rendering across primary fragments (`ThemeConfigurationTest.java`).
+  - [x] Airplane mode bypass checks (verifying app fails closed to local PIN cache) (`OfflineSyncAndSecurityTest.java`).
 
-**Estimated Effort**: Large (~2–4 days)
+**Status**: ✅ **Completed**

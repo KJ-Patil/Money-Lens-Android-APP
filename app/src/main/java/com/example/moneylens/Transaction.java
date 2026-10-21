@@ -22,7 +22,31 @@ public class Transaction implements Serializable {
     private String currencySymbol;
     private String source = "manual"; // "manual", "sms", "voice", "ocr"
     private String receiptUrl; // optional Storage path
-    private Timestamp createdAt;
+    private transient Timestamp createdAt;
+
+    private static final long serialVersionUID = 1L;
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+        out.defaultWriteObject();
+        if (createdAt != null) {
+            out.writeBoolean(true);
+            out.writeLong(createdAt.getSeconds());
+            out.writeInt(createdAt.getNanoseconds());
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        if (in.readBoolean()) {
+            long seconds = in.readLong();
+            int nanoseconds = in.readInt();
+            this.createdAt = new Timestamp(seconds, nanoseconds);
+        } else {
+            this.createdAt = null;
+        }
+    }
 
     /**
      * Pre-discount price, when a discount was applied. Null on every transaction

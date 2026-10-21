@@ -16,9 +16,47 @@ public class SavingsGoal implements Serializable {
     private double targetAmount;
     private double savedAmount;
     private String currency;
-    private Timestamp deadline;
-    private Timestamp createdAt;
+    private transient Timestamp deadline;
+    private transient Timestamp createdAt;
     private String bucket; // "needs" | "wants" | "investments"; null = legacy
+
+    private static final long serialVersionUID = 1L;
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+        out.defaultWriteObject();
+        if (deadline != null) {
+            out.writeBoolean(true);
+            out.writeLong(deadline.getSeconds());
+            out.writeInt(deadline.getNanoseconds());
+        } else {
+            out.writeBoolean(false);
+        }
+        if (createdAt != null) {
+            out.writeBoolean(true);
+            out.writeLong(createdAt.getSeconds());
+            out.writeInt(createdAt.getNanoseconds());
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        if (in.readBoolean()) {
+            long seconds = in.readLong();
+            int nanoseconds = in.readInt();
+            this.deadline = new Timestamp(seconds, nanoseconds);
+        } else {
+            this.deadline = null;
+        }
+        if (in.readBoolean()) {
+            long seconds = in.readLong();
+            int nanoseconds = in.readInt();
+            this.createdAt = new Timestamp(seconds, nanoseconds);
+        } else {
+            this.createdAt = null;
+        }
+    }
 
     public SavingsGoal() {
         // Required empty public constructor for Firestore

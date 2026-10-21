@@ -260,16 +260,20 @@ public class CustomerLedgerFragment extends Fragment {
 
                 itemView.setOnClickListener(v -> {
                     int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) {
+                    if (pos >= 0 && pos < filteredCustomers.size()) {
+                        Customer selected = filteredCustomers.get(pos);
                         Intent intent = new Intent(getContext(), CustomerDetailActivity.class);
-                        intent.putExtra("customer", filteredCustomers.get(pos));
+                        intent.putExtra("customer", selected);
+                        intent.putExtra("customer_id", selected.getId());
                         startActivity(intent);
                     }
                 });
 
                 b.btnWhatsApp.setOnClickListener(v -> {
                     int pos = getAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) openWhatsApp(filteredCustomers.get(pos));
+                    if (pos >= 0 && pos < filteredCustomers.size()) {
+                        openWhatsApp(filteredCustomers.get(pos));
+                    }
                 });
             }
 

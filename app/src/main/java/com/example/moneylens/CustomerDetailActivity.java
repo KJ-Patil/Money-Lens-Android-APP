@@ -71,7 +71,8 @@ public class CustomerDetailActivity extends BaseActivity {
         mFirestore = FirebaseFirestore.getInstance();
 
         customer = (Customer) getIntent().getSerializableExtra("customer");
-        if (customer == null) {
+        String customerId = getIntent().getStringExtra("customer_id");
+        if (customer == null && (customerId == null || customerId.isEmpty())) {
             finish();
             return;
         }
@@ -80,6 +81,10 @@ public class CustomerDetailActivity extends BaseActivity {
         setupToggleGroup();
         setupDatePicker();
         setupListeners();
+
+        if (customer != null) {
+            updateCustomerHeaderUI();
+        }
         observeCustomer();
         observeTransactions();
     }
@@ -139,17 +144,28 @@ public class CustomerDetailActivity extends BaseActivity {
         binding.btnGeneratePdf.setOnClickListener(v -> generatePdfStatement());
     }
 
+    private String getEffectiveCustomerId() {
+        if (customer != null && customer.getId() != null) {
+            return customer.getId();
+        }
+        return getIntent().getStringExtra("customer_id");
+    }
+
     private void observeCustomer() {
         if (mAuth.getCurrentUser() == null) return;
         String uid = mAuth.getCurrentUser().getUid();
+        String targetCustomerId = getEffectiveCustomerId();
+        if (targetCustomerId == null || targetCustomerId.isEmpty()) return;
 
         customerListener = mFirestore.collection("users").document(uid)
-                .collection("customers").document(customer.getId())
+                .collection("customers").document(targetCustomerId)
                 .addSnapshotListener((snapshot, error) -> {
                     if (error != null) return;
                     if (snapshot != null && snapshot.exists()) {
                         customer = Customer.fromDocument(snapshot);
-                        updateCustomerHeaderUI();
+                        if (binding != null) {
+                            updateCustomerHeaderUI();
+                        }
                     }
                 });
     }
@@ -157,10 +173,12 @@ public class CustomerDetailActivity extends BaseActivity {
     private void observeTransactions() {
         if (mAuth.getCurrentUser() == null) return;
         String uid = mAuth.getCurrentUser().getUid();
+        String targetCustomerId = getEffectiveCustomerId();
+        if (targetCustomerId == null || targetCustomerId.isEmpty()) return;
 
         transactionsListener = mFirestore.collection("users").document(uid)
                 .collection("customer_txns")
-                .whereEqualTo("customerId", customer.getId())
+                .whereEqualTo("customerId", targetCustomerId)
                 .orderBy("date", Query.Direction.DESCENDING)
                 .addSnapshotListener((value, error) -> {
                     if (error != null) return;
@@ -186,8 +204,9 @@ public class CustomerDetailActivity extends BaseActivity {
     }
 
     private void updateCustomerHeaderUI() {
-        binding.txtCustomerName.setText(customer.getName());
-        binding.txtCustomerPhone.setText(customer.getPhone());
+        if (binding == null || customer == null) return;
+        binding.txtCustomerName.setText(customer.getName() != null ? customer.getName() : "");
+        binding.txtCustomerPhone.setText(customer.getPhone() != null ? customer.getPhone() : "");
 
         if (customer.getName() != null && !customer.getName().trim().isEmpty()) {
             binding.txtAvatarLetter.setText(customer.getName().substring(0, 1).toUpperCase(Locale.US));

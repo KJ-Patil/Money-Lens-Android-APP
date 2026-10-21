@@ -22,12 +22,36 @@ import java.util.Map;
  */
 public class Customer implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private String id;
     private String name;
     private String phone;
     /** Positive: they owe us (credit) · negative: we owe them (debit). */
     private double balance;
-    private Timestamp createdAt;
+    private transient Timestamp createdAt;
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+        out.defaultWriteObject();
+        if (createdAt != null) {
+            out.writeBoolean(true);
+            out.writeLong(createdAt.getSeconds());
+            out.writeInt(createdAt.getNanoseconds());
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        if (in.readBoolean()) {
+            long seconds = in.readLong();
+            int nanoseconds = in.readInt();
+            this.createdAt = new Timestamp(seconds, nanoseconds);
+        } else {
+            this.createdAt = null;
+        }
+    }
 
     public Customer() {
         // Required for Firestore serialization

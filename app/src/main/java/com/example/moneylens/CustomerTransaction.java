@@ -10,12 +10,36 @@ import java.util.Map;
 
 public class CustomerTransaction implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private String id;
     private String customerId;
     private double amount;
     private String note;
-    private Timestamp date;
+    private transient Timestamp date;
     private String type; // "gave" (you gave credit / cash to customer) or "got" (you got payment / cash from customer)
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+        out.defaultWriteObject();
+        if (date != null) {
+            out.writeBoolean(true);
+            out.writeLong(date.getSeconds());
+            out.writeInt(date.getNanoseconds());
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        if (in.readBoolean()) {
+            long seconds = in.readLong();
+            int nanoseconds = in.readInt();
+            this.date = new Timestamp(seconds, nanoseconds);
+        } else {
+            this.date = null;
+        }
+    }
 
     /**
      * Id of the transaction this entry was mirrored into, under the {@code Ledger}
