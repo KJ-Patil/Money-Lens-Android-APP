@@ -13,7 +13,7 @@
         <!-- Translucent status/nav bars for glass effect -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/glassBottomNavBg</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 
