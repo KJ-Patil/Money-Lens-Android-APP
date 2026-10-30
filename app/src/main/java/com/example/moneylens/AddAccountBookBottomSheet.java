@@ -18,11 +18,20 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.TextWatcher;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import java.util.List;
+
 public class AddAccountBookBottomSheet extends BottomSheetDialogFragment {
 
     private DialogAddAccountBookBinding binding;
     /** Direction of the opening balance only — "they owe you" is the common case. */
     private boolean theyOweUs = true;
+
+    private List<Country> countries;
+    private Country selectedCountry;
 
     @Nullable
     @Override
@@ -41,7 +50,96 @@ public class AddAccountBookBottomSheet extends BottomSheetDialogFragment {
         binding.txtBalanceLabel.setText("OPENING BALANCE (" + currencyCode + ")");
 
         setupToggle();
+        setupCountrySelector();
         setupListeners();
+    }
+
+    private void setupCountrySelector() {
+        countries = Country.all();
+        Country defaultCountry = Country.getByCurrency(CurrencyManager.getInstance().getCurrentCurrencyCode());
+        selectedCountry = defaultCountry != null ? defaultCountry : countries.get(0);
+        updateCountryState();
+
+        binding.btnCountryCode.setOnClickListener(v -> showCountryPicker());
+
+        binding.etPhone.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (s == null) return;
+                String text = s.toString();
+
+                if (text.startsWith("+")) {
+                    Country.ParsedPhone parsed = Country.parsePhone(text, selectedCountry);
+                    selectedCountry = parsed.country;
+                    updateCountryState();
+                    binding.etPhone.removeTextChangedListener(this);
+                    binding.etPhone.setText(parsed.nationalNumber);
+                    if (binding.etPhone.getText() != null) {
+                        binding.etPhone.setSelection(binding.etPhone.getText().length());
+                    }
+                    binding.etPhone.addTextChangedListener(this);
+                    return;
+                }
+
+                // If user entered a leading '0' (domestic trunk prefix in India e.g. 09876543210 -> 9876543210)
+                if (text.startsWith("0") && text.length() > 1 && "IN".equals(selectedCountry.isoCode)) {
+                    String trimmed = text.substring(1);
+                    binding.etPhone.removeTextChangedListener(this);
+                    binding.etPhone.setText(trimmed);
+                    binding.etPhone.setSelection(trimmed.length());
+                    binding.etPhone.addTextChangedListener(this);
+                    return;
+                }
+
+                if (binding.tilPhone.getError() != null) {
+                    String digits = Country.digitsOnly(text);
+                    if (digits.length() >= selectedCountry.minDigits && digits.length() <= selectedCountry.maxDigits) {
+                        binding.tilPhone.setError(null);
+                    }
+                }
+            }
+        });
+    }
+
+    private void updateCountryState() {
+        if (binding == null || selectedCountry == null) return;
+        binding.btnCountryCode.setText(selectedCountry.flag() + " " + selectedCountry.dialCode);
+
+        if (selectedCountry.minDigits == selectedCountry.maxDigits) {
+            binding.tilPhone.setHint(selectedCountry.maxDigits + "-digit mobile number");
+        } else {
+            binding.tilPhone.setHint(selectedCountry.minDigits + "–" + selectedCountry.maxDigits + " digits");
+        }
+
+        binding.etPhone.setFilters(new InputFilter[]{
+                new InputFilter.LengthFilter(selectedCountry.maxDigits)
+        });
+
+        String current = binding.etPhone.getText() != null ? binding.etPhone.getText().toString() : "";
+        String digits = Country.digitsOnly(current);
+        if (digits.length() > selectedCountry.maxDigits) {
+            digits = digits.substring(0, selectedCountry.maxDigits);
+            binding.etPhone.setText(digits);
+            binding.etPhone.setSelection(digits.length());
+        }
+    }
+
+    private void showCountryPicker() {
+        if (getContext() == null) return;
+        String[] labels = new String[countries.size()];
+        for (int i = 0; i < countries.size(); i++) {
+            labels[i] = countries.get(i).displayLabel();
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Select Country")
+                .setItems(labels, (dialog, which) -> {
+                    selectedCountry = countries.get(which);
+                    updateCountryState();
+                })
+                .show();
     }
 
     private void setupToggle() {
@@ -81,7 +179,14 @@ public class AddAccountBookBottomSheet extends BottomSheetDialogFragment {
             if (contacts.isEmpty() || binding == null) return;
             ContactPickerBottomSheet.Contact c = contacts.get(0);
             binding.etName.setText(c.name);
-            binding.etPhone.setText(c.phone);
+
+            Country.ParsedPhone parsed = Country.parsePhone(c.phone, selectedCountry);
+            selectedCountry = parsed.country;
+            updateCountryState();
+            binding.etPhone.setText(parsed.nationalNumber);
+            if (binding.etPhone.getText() != null) {
+                binding.etPhone.setSelection(binding.etPhone.getText().length());
+            }
         });
         picker.show(getChildFragmentManager(), "contact_picker");
     }
@@ -89,7 +194,7 @@ public class AddAccountBookBottomSheet extends BottomSheetDialogFragment {
     private void createBook() {
         String name = binding.etName.getText() != null
                 ? binding.etName.getText().toString().trim() : "";
-        String phone = binding.etPhone.getText() != null
+        String rawPhone = binding.etPhone.getText() != null
                 ? binding.etPhone.getText().toString().trim() : "";
         String balanceStr = binding.etOpeningBalance.getText() != null
                 ? binding.etOpeningBalance.getText().toString().trim() : "0";
@@ -99,6 +204,20 @@ public class AddAccountBookBottomSheet extends BottomSheetDialogFragment {
             return;
         }
         binding.tilName.setError(null);
+
+        String nationalDigits = Country.digitsOnly(rawPhone);
+        String finalPhoneNumber = "";
+        if (!nationalDigits.isEmpty()) {
+            String phoneError = selectedCountry.validatePhone(nationalDigits);
+            if (phoneError != null) {
+                binding.tilPhone.setError(phoneError);
+                return;
+            }
+            binding.tilPhone.setError(null);
+            finalPhoneNumber = selectedCountry.dialCode + " " + nationalDigits;
+        } else {
+            binding.tilPhone.setError(null);
+        }
 
         double openingBalance = 0.0;
         try {
@@ -124,7 +243,7 @@ public class AddAccountBookBottomSheet extends BottomSheetDialogFragment {
                 .collection("customers").document();
         String customerId = docRef.getId();
 
-        Customer customer = new Customer(customerId, name, phone,
+        Customer customer = new Customer(customerId, name, finalPhoneNumber,
                 openingBalance, Timestamp.now());
 
         docRef.set(customer.toMap())

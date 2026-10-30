@@ -139,9 +139,20 @@ public class CustomerDetailActivity extends BaseActivity {
 
     private void setupListeners() {
         binding.btnBack.setOnClickListener(v -> finish());
+        binding.btnEditContact.setOnClickListener(v -> showEditContactSheet());
         binding.btnSaveEntry.setOnClickListener(v -> saveEntry());
         binding.btnSendReminder.setOnClickListener(v -> sendWhatsAppReminder());
         binding.btnGeneratePdf.setOnClickListener(v -> generatePdfStatement());
+    }
+
+    private void showEditContactSheet() {
+        if (customer == null) return;
+        EditCustomerBottomSheet sheet = EditCustomerBottomSheet.newInstance(
+                customer.getId(),
+                customer.getName(),
+                customer.getPhone()
+        );
+        sheet.show(getSupportFragmentManager(), "EditCustomerBottomSheet");
     }
 
     private String getEffectiveCustomerId() {

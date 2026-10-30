@@ -123,22 +123,43 @@
             android:textStyle="bold"
             android:layout_marginBottom="6dp" />
 
-        <!-- Phone Number input -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilPhone"
-            style="@style/ClayInput"
+        <!-- Phone Number input with Country Code Selector -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
-            android:hint="e.g. 9876543210">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPhone"
-                android:layout_width="match_parent"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCountryCode"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="56dp"
+                android:layout_marginEnd="8dp"
+                android:paddingHorizontal="10dp"
+                android:text="🇮🇳 +91"
+                android:textColor="@color/colorTextPrimary"
+                android:textSize="13sp"
+                app:strokeColor="@color/colorCardBorder" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilPhone"
+                style="@style/ClayInput"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:inputType="phone"
-                android:textColor="@color/colorTextPrimary" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_weight="1"
+                android:hint="10-digit mobile number">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etPhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:digits="0123456789"
+                    android:textColor="@color/colorTextPrimary" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"

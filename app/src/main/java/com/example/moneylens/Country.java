@@ -138,6 +138,78 @@ public class Country {
         return dialCode + digitsOnly(nationalNumber);
     }
 
+    public static Country getByDialCode(String dialCode) {
+        if (dialCode == null) return null;
+        String clean = dialCode.trim().startsWith("+") ? dialCode.trim() : "+" + dialCode.trim();
+        for (Country c : all()) {
+            if (c.dialCode.equals(clean)) return c;
+        }
+        return null;
+    }
+
+    public static class ParsedPhone {
+        public final Country country;
+        public final String nationalNumber;
+
+        public ParsedPhone(Country country, String nationalNumber) {
+            this.country = country;
+            this.nationalNumber = nationalNumber;
+        }
+    }
+
+    public static ParsedPhone parsePhone(String rawPhone, Country defaultCountry) {
+        Country fallback = defaultCountry != null ? defaultCountry : all().get(0);
+        if (rawPhone == null || rawPhone.trim().isEmpty()) {
+            return new ParsedPhone(fallback, "");
+        }
+        String trimmed = rawPhone.trim();
+
+        // 1. If starts with '+'
+        if (trimmed.startsWith("+")) {
+            String digits = digitsOnly(trimmed);
+            Country bestMatch = null;
+            for (Country c : all()) {
+                String cDigits = digitsOnly(c.dialCode);
+                if (digits.startsWith(cDigits)) {
+                    if (bestMatch == null || cDigits.length() > digitsOnly(bestMatch.dialCode).length()) {
+                        bestMatch = c;
+                    }
+                }
+            }
+            if (bestMatch != null) {
+                String cDigits = digitsOnly(bestMatch.dialCode);
+                String national = digits.substring(cDigits.length());
+                return new ParsedPhone(bestMatch, national);
+            }
+        }
+
+        // 2. Raw digits
+        String digits = digitsOnly(trimmed);
+        Country country = fallback;
+
+        // Auto-detect common domestic trunk prefixes or country dial codes without '+'
+        if ("IN".equals(country.isoCode)) {
+            // 0 trunk prefix on 11-digit Indian number: e.g. 09876543210 -> 9876543210
+            if (digits.length() == 11 && digits.startsWith("0")) {
+                digits = digits.substring(1);
+            } else if (digits.length() == 12 && digits.startsWith("91")) {
+                digits = digits.substring(2);
+            }
+        } else if ("US".equals(country.isoCode) || "CA".equals(country.isoCode)) {
+            if (digits.length() == 11 && digits.startsWith("1")) {
+                digits = digits.substring(1);
+            }
+        } else if ("GB".equals(country.isoCode)) {
+            if (digits.length() == 11 && digits.startsWith("0")) {
+                digits = digits.substring(1);
+            } else if (digits.length() == 12 && digits.startsWith("44")) {
+                digits = digits.substring(2);
+            }
+        }
+
+        return new ParsedPhone(country, digits);
+    }
+
     /**
      * Country-agnostic sanity check for a phone field with no country selector
      * (e.g. a ledger contact that may be domestic or foreign). Enforces only the

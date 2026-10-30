@@ -7,17 +7,23 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.TextWatcher;
 import android.view.View;
 
 import androidx.annotation.Nullable;
 
 import com.example.moneylens.databinding.ActivityAddCustomerBinding;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.WriteBatch;
+
+import java.util.List;
 
 public class AddCustomerActivity extends BaseActivity {
 
@@ -26,6 +32,9 @@ public class AddCustomerActivity extends BaseActivity {
     private ActivityAddCustomerBinding binding;
     private FirebaseAuth mAuth;
     private FirebaseFirestore mFirestore;
+
+    private List<Country> countries;
+    private Country selectedCountry;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,11 +45,98 @@ public class AddCustomerActivity extends BaseActivity {
         mAuth = FirebaseAuth.getInstance();
         mFirestore = FirebaseFirestore.getInstance();
 
+        setupCountrySelector();
         setupListeners();
 
         // "They owe you" is the common case for a customer khata, so it is the
         // pre-selected direction rather than leaving the pair unchecked.
         binding.toggleOpeningDirection.check(R.id.btnOpeningTheyOwe);
+    }
+
+    private void setupCountrySelector() {
+        countries = Country.all();
+        Country defaultCountry = Country.getByCurrency(CurrencyManager.getInstance().getCurrentCurrencyCode());
+        selectedCountry = defaultCountry != null ? defaultCountry : countries.get(0);
+        updateCountryState();
+
+        binding.btnCountryCode.setOnClickListener(v -> showCountryPicker());
+
+        binding.etCustomerPhone.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (s == null) return;
+                String text = s.toString();
+
+                if (text.startsWith("+")) {
+                    Country.ParsedPhone parsed = Country.parsePhone(text, selectedCountry);
+                    selectedCountry = parsed.country;
+                    updateCountryState();
+                    binding.etCustomerPhone.removeTextChangedListener(this);
+                    binding.etCustomerPhone.setText(parsed.nationalNumber);
+                    if (binding.etCustomerPhone.getText() != null) {
+                        binding.etCustomerPhone.setSelection(binding.etCustomerPhone.getText().length());
+                    }
+                    binding.etCustomerPhone.addTextChangedListener(this);
+                    return;
+                }
+
+                if (text.startsWith("0") && text.length() > 1 && "IN".equals(selectedCountry.isoCode)) {
+                    String trimmed = text.substring(1);
+                    binding.etCustomerPhone.removeTextChangedListener(this);
+                    binding.etCustomerPhone.setText(trimmed);
+                    binding.etCustomerPhone.setSelection(trimmed.length());
+                    binding.etCustomerPhone.addTextChangedListener(this);
+                    return;
+                }
+
+                if (binding.tilCustomerPhone.getError() != null) {
+                    String digits = Country.digitsOnly(text);
+                    if (digits.length() >= selectedCountry.minDigits && digits.length() <= selectedCountry.maxDigits) {
+                        binding.tilCustomerPhone.setError(null);
+                    }
+                }
+            }
+        });
+    }
+
+    private void updateCountryState() {
+        if (binding == null || selectedCountry == null) return;
+        binding.btnCountryCode.setText(selectedCountry.flag() + " " + selectedCountry.dialCode);
+
+        if (selectedCountry.minDigits == selectedCountry.maxDigits) {
+            binding.tilCustomerPhone.setHint(selectedCountry.maxDigits + "-digit mobile number");
+        } else {
+            binding.tilCustomerPhone.setHint(selectedCountry.minDigits + "–" + selectedCountry.maxDigits + " digits");
+        }
+
+        binding.etCustomerPhone.setFilters(new InputFilter[]{
+                new InputFilter.LengthFilter(selectedCountry.maxDigits)
+        });
+
+        String current = binding.etCustomerPhone.getText() != null ? binding.etCustomerPhone.getText().toString() : "";
+        String digits = Country.digitsOnly(current);
+        if (digits.length() > selectedCountry.maxDigits) {
+            digits = digits.substring(0, selectedCountry.maxDigits);
+            binding.etCustomerPhone.setText(digits);
+            binding.etCustomerPhone.setSelection(digits.length());
+        }
+    }
+
+    private void showCountryPicker() {
+        String[] labels = new String[countries.size()];
+        for (int i = 0; i < countries.size(); i++) {
+            labels[i] = countries.get(i).displayLabel();
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Select Country")
+                .setItems(labels, (dialog, which) -> {
+                    selectedCountry = countries.get(which);
+                    updateCountryState();
+                })
+                .show();
     }
 
     private void setupListeners() {
@@ -71,7 +167,14 @@ public class AddCustomerActivity extends BaseActivity {
                     String name = cursor.getString(nameIndex);
 
                     binding.etCustomerName.setText(name);
-                    binding.etCustomerPhone.setText(number);
+
+                    Country.ParsedPhone parsed = Country.parsePhone(number, selectedCountry);
+                    selectedCountry = parsed.country;
+                    updateCountryState();
+                    binding.etCustomerPhone.setText(parsed.nationalNumber);
+                    if (binding.etCustomerPhone.getText() != null) {
+                        binding.etCustomerPhone.setSelection(binding.etCustomerPhone.getText().length());
+                    }
                 }
             } catch (Exception e) {
                 showError("Failed to import contact details: " + e.getMessage());
@@ -81,19 +184,26 @@ public class AddCustomerActivity extends BaseActivity {
 
     private void saveCustomer() {
         String name = binding.etCustomerName.getText().toString().trim();
-        String phone = binding.etCustomerPhone.getText().toString().trim();
+        String rawPhone = binding.etCustomerPhone.getText().toString().trim();
 
         if (name.isEmpty()) {
             showError("Please enter contact name.");
             return;
         }
 
-        // Reject a mistyped number here — a bad one saves fine but silently breaks
-        // the WhatsApp/SMS reminder links that depend on it later.
-        String phoneError = Country.validateLoosePhone(phone);
-        if (phoneError != null) {
-            showError(phoneError);
-            return;
+        String nationalDigits = Country.digitsOnly(rawPhone);
+        String finalPhoneNumber = "";
+        if (!nationalDigits.isEmpty()) {
+            String phoneError = selectedCountry.validatePhone(nationalDigits);
+            if (phoneError != null) {
+                binding.tilCustomerPhone.setError(phoneError);
+                showError(phoneError);
+                return;
+            }
+            binding.tilCustomerPhone.setError(null);
+            finalPhoneNumber = selectedCountry.dialCode + " " + nationalDigits;
+        } else {
+            binding.tilCustomerPhone.setError(null);
         }
 
         // A khata is usually opened because money is already owed. Parsing this
@@ -124,7 +234,7 @@ public class AddCustomerActivity extends BaseActivity {
         // The customer document always starts at zero; the opening balance arrives
         // through the same entry path as every other one, so it is visible in the
         // history and reversible, instead of an unexplained starting number.
-        Customer customer = new Customer(customerId, name, phone, 0.0, Timestamp.now());
+        Customer customer = new Customer(customerId, name, finalPhoneNumber, 0.0, Timestamp.now());
 
         WriteBatch batch = mFirestore.batch();
         batch.set(docRef, customer.toMap());
